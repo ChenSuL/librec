@@ -21,14 +21,11 @@ import net.librec.annotation.ModelData;
 import net.librec.common.LibrecException;
 import net.librec.math.algorithm.Maths;
 import net.librec.math.algorithm.Randoms;
-import net.librec.math.structure.MatrixEntry;
-import net.librec.math.structure.SparseMatrix;
 import net.librec.recommender.MatrixFactorizationRecommender;
-
-import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
+
 
 /**
  * Rendle et al., <strong>BPR: Bayesian Personalized Ranking from Implicit Feedback</strong>, UAI 2009.
@@ -37,7 +34,6 @@ import java.util.Set;
  */
 @ModelData({"isRanking", "bpr", "userFactors", "itemFactors"})
 public class BPRRecommender extends MatrixFactorizationRecommender {
-    private List<Set<Integer>> userItemsSet;
 
     @Override
     protected void setup() throws LibrecException {
@@ -46,8 +42,13 @@ public class BPRRecommender extends MatrixFactorizationRecommender {
 
     @Override
     protected void trainModel() throws LibrecException {
-
-        userItemsSet = getUserItemsSet(trainMatrix);
+        
+        Map<Integer, List<Integer>> UserItemsSet = new HashMap<Integer, List<Integer>>();
+		for(int userIdx=0; userIdx<numUsers; userIdx++)
+		{
+			UserItemsSet.put(userIdx, trainMatrix.getColumns(userIdx));
+		}
+        
 
         for (int iter = 1; iter <= numIterations; iter++) {
 
@@ -56,21 +57,21 @@ public class BPRRecommender extends MatrixFactorizationRecommender {
 
                 // randomly draw (userIdx, posItemIdx, negItemIdx)
                 int userIdx, posItemIdx, negItemIdx;
+                
                 while (true) {
                     userIdx = Randoms.uniform(numUsers);
-                    Set<Integer> itemSet = userItemsSet.get(userIdx);
-                    if (itemSet.size() == 0 || itemSet.size() == numItems)
+                    List<Integer> itemList = UserItemsSet.get(userIdx);
+                    if (itemList.size() == 0 || itemList.size() == numItems)
                         continue;
 
-                    List<Integer> itemList = trainMatrix.getColumns(userIdx);
                     posItemIdx = itemList.get(Randoms.uniform(itemList.size()));
                     do {
                         negItemIdx = Randoms.uniform(numItems);
-                    } while (itemSet.contains(negItemIdx));
+                    } while (trainMatrix.get(userIdx, negItemIdx)!=0);
 
                     break;
                 }
-
+         	
                 // update parameters
                 double posPredictRating = predict(userIdx, posItemIdx);
                 double negPredictRating = predict(userIdx, negItemIdx);
@@ -100,11 +101,5 @@ public class BPRRecommender extends MatrixFactorizationRecommender {
         }
     }
 
-    private List<Set<Integer>> getUserItemsSet(SparseMatrix sparseMatrix) {
-        List<Set<Integer>> userItemsSet = new ArrayList<>();
-        for (int userIdx = 0; userIdx < numUsers; ++userIdx) {
-            userItemsSet.add(new HashSet(sparseMatrix.getColumns(userIdx)));
-        }
-        return userItemsSet;
-    }
+    
 }
